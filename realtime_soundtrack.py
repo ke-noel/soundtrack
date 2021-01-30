@@ -140,7 +140,7 @@ elif mode == "display":
                 cv2.rectangle(roi_color, (sx, sy), ((sx + sw), (sy + sh)), (0, 0, 255), 2)
 
         # Show frame to user
-        cv2.imshow("Frame: Pres 'ESC' to exit the program", frame)
+        cv2.imshow("Frame: Pres 'q' to exit the program", frame)
         key = cv2.waitKey(1) & 0xFF
 
         # Quit program by pressing 'q'
