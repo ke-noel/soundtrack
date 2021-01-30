@@ -106,13 +106,15 @@ elif mode == "display":
     model.load_weights('model.h5')
     cv2.ocl.setUseOpenCL(False)
 
-    # Dictionary that takes emotions and interpretes them as a song category
+    # Dictionaries
     emotion_dict = {0: "Angry", 1: "Disgusted", 2: "Fearful", 3: "Happy",
                     4: "Neutral", 5: "Sad", 6: "Surprised"}
 
     action_dict = {0: "Calming down user", 1: "Calming down user", 2: "Calming down user", 3: "Upbeat Environment",
                     4: "Chill Environment", 5: "Calming down user", 6: "Happy Environment"}
-    # emotion_dict = {0: "Angry", 1: "Disgusted", 2: "Fearful", 3: "Happy", 4: "Neutral", 5: "Sad", 6: "Surprised"}
+
+    spotipy_dict = {0: "Rock", 1: "skip", 2: "Relaxing", 3: "Upbeat",
+                   4: "Chill", 5: "Piano", 6: "Happy"}
 
     # Webcam Feed (LIVE)
     cap = cv2.VideoCapture(0)
