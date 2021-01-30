@@ -6,9 +6,7 @@ import sys
 # Get authentication token for Spotify and user permissions
 # Need to set SPOTIPY_CLIENT_ID, SPOTIPY_CLIENT_SECRET and SPOTIPY_REDIRECT_URI (or include below)
 def authenticate(scope='user-modify-playback-state,user-read-playback-state'):
-    spotify = spotipy.Spotify(auth_manager=SpotifyOAuth(scope=scope, redirect_uri="https://localhost:8080"))
-    #spotify.volume(100)
-    return spotify
+    return spotipy.Spotify(auth_manager=SpotifyOAuth(scope=scope, redirect_uri="https://localhost:8080"))
 
 # Query Spotify to get a new track matching the given mood
 # Return the track id
@@ -65,14 +63,25 @@ def next(spotify, mood):
     track_uri = get_new_track_uri(spotify, mood)
     change_songs(spotify, track_uri)
 
+# Authenticates and sets volume to 100
+# return authentication object
+def setup(scope=None):
+    spotify = None
+    if scope is not None:
+        spotify = authenticate(scope)
+    else:
+        spotify = authenticate()
+
+    if not has_active_device(spotify):
+        print("err: no active devices")
+        quit()
+    spotify.volume(100)
+    return spotify
+
 if __name__ == '__main__':
     if len(sys.argv) <= 1:
         print("err: no mood given")
         quit()
     mood = sys.argv[1]
-    spotify = authenticate()
-    if not has_active_device(spotify):
-        print("err: no active device")
-        quit()
-    spotify.volume(100)
+    spotify = setup()
     next(spotify, mood)
