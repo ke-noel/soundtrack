@@ -12,6 +12,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import matplotlib as mpl
 mpl.use('TkAgg')
 import matplotlib.pyplot as plt
+#import play_mood_music
 
 # command line argument
 ap = argparse.ArgumentParser()
@@ -106,7 +107,11 @@ elif mode == "display":
     cv2.ocl.setUseOpenCL(False)
 
     # Dictionary that takes emotions and interpretes them as a song category
-    emotion_dict = {0: "Action/Rage", 1: "Skip song", 2: "Anxiety", 3: "Upbeat", 4: "Calm/Chill", 5: "Sad", 6: "Party"}
+    emotion_dict = {0: "Angry", 1: "Disgusted", 2: "Fearful", 3: "Happy",
+                    4: "Neutral", 5: "Sad", 6: "Surprised"}
+
+    action_dict = {0: "Calming down user", 1: "Calming down user", 2: "Calming down user", 3: "Upbeat Environment",
+                    4: "Chill Environment", 5: "Calming down user", 6: "Happy Environment"}
     # emotion_dict = {0: "Angry", 1: "Disgusted", 2: "Fearful", 3: "Happy", 4: "Neutral", 5: "Sad", 6: "Surprised"}
 
     # Webcam Feed (LIVE)
@@ -126,7 +131,8 @@ elif mode == "display":
             cropped_img = np.expand_dims(np.expand_dims(cv2.resize(roi_gray, (48, 48)), -1), 0)
             prediction = model.predict(cropped_img)
             maxindex = int(np.argmax(prediction))
-            cv2.putText(frame, emotion_dict[maxindex], (x+20, y-60), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
+            cv2.putText(frame, emotion_dict[maxindex], (x+20, y-90), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA)
+            cv2.putText(frame, action_dict[maxindex], (x+20, y-60), cv2.FONT_ITALIC, 1, (0, 255, 0), 2, cv2.LINE_AA)
 
             roi_color = frame[y:y + h, x:x + w]
             eyes = eye_cascade.detectMultiScale(roi_gray, 1.8, 20)
@@ -134,7 +140,7 @@ elif mode == "display":
                 cv2.rectangle(roi_color, (sx, sy), ((sx + sw), (sy + sh)), (0, 0, 255), 2)
 
         # Show frame to user
-        cv2.imshow("Frame", frame)
+        cv2.imshow("Frame: Pres 'ESC' to exit the program", frame)
         key = cv2.waitKey(1) & 0xFF
 
         # Quit program by pressing 'q'
