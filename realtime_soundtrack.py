@@ -12,7 +12,10 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import matplotlib as mpl
 mpl.use('TkAgg')
 import matplotlib.pyplot as plt
-#import play_mood_music
+from play_mood_music import setup, next
+
+# settings
+RUNNING_AVERAGE_SAMPLES = 3
 
 # command line argument
 ap = argparse.ArgumentParser()
@@ -42,6 +45,7 @@ def plot_model_history(model_history):
     fig.savefig('plot.png')
     plt.show()
 
+'''
 # Define data generators
 train_dir = 'data/train'
 val_dir = 'data/test'
@@ -67,6 +71,7 @@ validation_generator = val_datagen.flow_from_directory(
     batch_size=batch_size,
     color_mode="grayscale",
     class_mode='categorical')
+'''
 
 # Create the model
 model = Sequential()
@@ -89,7 +94,8 @@ model.add(Dense(7, activation='softmax'))
 
 # Train Command
 if mode == "train":
-    model.compile(loss='categorical_crossentropy',optimizer=Adam(lr=0.0001, decay=1e-6),metrics=['accuracy'])
+    pass
+    '''model.compile(loss='categorical_crossentropy',optimizer=Adam(lr=0.0001, decay=1e-6),metrics=['accuracy'])
 
     model_info = model.fit(
         train_generator,
@@ -99,7 +105,7 @@ if mode == "train":
         validation_steps=num_val // batch_size)
 
     plot_model_history(model_info)
-    model.save_weights('model.h5')
+    model.save_weights('model.h5')'''
 
 # Run soundtrack
 elif mode == "display":
@@ -118,10 +124,13 @@ elif mode == "display":
 
     # Webcam Feed (LIVE)
     cap = cv2.VideoCapture(0)
+    rolling_samples = []
+    freqs = np.zeros(7, dtype=int)
     while True:
-
+        
         # Find haar cascade to draw bounding box around face and eyes
         ret, frame = cap.read()
+        frame = cv2.flip(frame, 1)
         facecasc = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
         eye_cascade = cv2.CascadeClassifier('haarcascade_eye.xml')
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -133,8 +142,18 @@ elif mode == "display":
             cropped_img = np.expand_dims(np.expand_dims(cv2.resize(roi_gray, (48, 48)), -1), 0)
             prediction = model.predict(cropped_img)
             maxindex = int(np.argmax(prediction))
-            cv2.putText(frame, emotion_dict[maxindex], (x+20, y-90), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA)
-            cv2.putText(frame, action_dict[maxindex], (x+20, y-60), cv2.FONT_ITALIC, 1, (0, 255, 0), 2, cv2.LINE_AA)
+
+            # take rolling average
+            if len(rolling_samples) >= RUNNING_AVERAGE_SAMPLES:
+                oldest = rolling_samples.pop(0)
+                freqs[oldest-1] -= 1
+            rolling_samples.append(maxindex)
+            freqs[maxindex] += 1
+            maxavg = np.max(freqs)
+            maxavgindex = np.where(freqs == maxavg)[0][0]
+
+            cv2.putText(frame, emotion_dict[maxavgindex], (x+20, y-90), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA)
+            cv2.putText(frame, action_dict[maxavgindex], (x+20, y-60), cv2.FONT_ITALIC, 1, (0, 255, 0), 2, cv2.LINE_AA)
 
             roi_color = frame[y:y + h, x:x + w]
             eyes = eye_cascade.detectMultiScale(roi_gray, 1.8, 20)
