@@ -10,20 +10,25 @@ def authenticate(scope='user-modify-playback-state,user-read-playback-state'):
 
 # Query Spotify to get a new track matching the given mood
 # Return the track id
-def get_new_track_uri(spotify, mood, playlist_offset=random.randint(0,5), track_offset=random.randint(0,10), instrumental=False):
+def get_new_track_uri(spotify, mood, playlist_offset=None, track_offset=None, instrumental=False):
     # query for a playlist with a matching "mood"
-    results = None
+
+    if playlist_offset is None:
+        playlist_offset = random.randint(0, 10)
+    if track_offset is None:
+        track_offset = random.randint(0, 20)
+
     if instrumental:
         results = spotify.search(q=mood + ' instrumental', type='playlist', limit=1, offset=playlist_offset)
     else:
         results = spotify.search(q=mood, type='playlist', limit=1, offset=playlist_offset)
-    if len(results) <= playlist_offset:
-        return get_new_track_uri(spotify, mood, playlist_offset=0)
+    if len(results) < 1:
+        return get_new_track_uri(spotify, mood, playlist_offset=0, instrumental=instrumental)
     playlist_id = results['playlists']['items'][0]['id']
     
     # query the selected playlist for a random track
     results = spotify.playlist_items(playlist_id, market="CA", limit=1, offset=track_offset)
-    if len(results) <= track_offset:
+    if len(results) < 1:
         return get_new_track_uri(spotify, mood, playlist_offset=playlist_offset, track_offset=0)
     uri = results['items'][0]['track']['uri']
 
@@ -59,14 +64,13 @@ def change_songs(spotify, track_uri, fade=True):
     fade_in(spotify)
 
 # Get a song matching the mood and start playing it
-def next(spotify, mood):
-    track_uri = get_new_track_uri(spotify, mood)
+def next(spotify, mood, instrumental=False):
+    track_uri = get_new_track_uri(spotify, mood, instrumental=instrumental)
     change_songs(spotify, track_uri)
 
 # Authenticates and sets volume to 100
 # return authentication object
 def setup(scope=None):
-    spotify = None
     if scope is not None:
         spotify = authenticate(scope)
     else:
