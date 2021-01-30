@@ -12,9 +12,13 @@ def authenticate(scope='user-modify-playback-state,user-read-playback-state'):
 
 # Query Spotify to get a new track matching the given mood
 # Return the track id
-def get_new_track_uri(spotify, mood, playlist_offset=random.randint(0,10), track_offset=random.randint(0,10)):
+def get_new_track_uri(spotify, mood, playlist_offset=random.randint(0,5), track_offset=random.randint(0,10), instrumental=False):
     # query for a playlist with a matching "mood"
-    results = spotify.search(q='playlist:' + mood, type='playlist', limit=1, offset=playlist_offset)
+    results = None
+    if instrumental:
+        results = spotify.search(q=mood + ' instrumental', type='playlist', limit=1, offset=playlist_offset)
+    else:
+        results = spotify.search(q=mood, type='playlist', limit=1, offset=playlist_offset)
     if len(results) <= playlist_offset:
         return get_new_track_uri(spotify, mood, playlist_offset=0)
     playlist_id = results['playlists']['items'][0]['id']
