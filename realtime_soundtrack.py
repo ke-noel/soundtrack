@@ -1,81 +1,24 @@
 import numpy as np
-import argparse
 import cv2
+import matplotlib as mpl
 from keras.models import Sequential
 from keras.layers.core import Dense, Dropout, Flatten
 from keras.layers.convolutional import Conv2D
-from keras.optimizers import Adam
-from keras.layers.pooling import MaxPooling2D
-from keras.preprocessing.image import ImageDataGenerator
-import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-import matplotlib as mpl
-mpl.use('TkAgg')
-import matplotlib.pyplot as plt
 from play_mood_music import setup, next
+from keras.layers.pooling import MaxPooling2D
+import os
+
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+mpl.use('TkAgg')
 
 # settings
 RUNNING_AVERAGE_SAMPLES = 5
 LONGTERM_ROLLING_AVERAGE_SAMPLES = 5
 
-# command line argument
-ap = argparse.ArgumentParser()
-ap.add_argument("--mode",help="train/display")
-a = ap.parse_args()
-mode = a.mode
-
-# Plot of accuracy and loss
-def plot_model_history(model_history):
-    fig, axs = plt.subplots(1,2,figsize=(15,5))
-    # summarize history for accuracy
-    axs[0].plot(range(1,len(model_history.history['accuracy'])+1),model_history.history['accuracy'])
-    axs[0].plot(range(1,len(model_history.history['val_accuracy'])+1),model_history.history['val_accuracy'])
-    axs[0].set_title('Model Accuracy')
-    axs[0].set_ylabel('Accuracy')
-    axs[0].set_xlabel('Epoch')
-    axs[0].set_xticks(np.arange(1,len(model_history.history['accuracy'])+1),len(model_history.history['accuracy'])/10)
-    axs[0].legend(['train', 'val'], loc='best')
-    # summarize history for loss
-    axs[1].plot(range(1,len(model_history.history['loss'])+1),model_history.history['loss'])
-    axs[1].plot(range(1,len(model_history.history['val_loss'])+1),model_history.history['val_loss'])
-    axs[1].set_title('Model Loss')
-    axs[1].set_ylabel('Loss')
-    axs[1].set_xlabel('Epoch')
-    axs[1].set_xticks(np.arange(1,len(model_history.history['loss'])+1),len(model_history.history['loss'])/10)
-    axs[1].legend(['train', 'val'], loc='best')
-    fig.savefig('plot.png')
-    plt.show()
-
-# Define data generators
-train_dir = 'data/train'
-val_dir = 'data/test'
-
-num_train = 28709
-num_val = 7178
-batch_size = 64
-num_epoch = 50
-
-train_datagen = ImageDataGenerator(rescale=1./255)
-val_datagen = ImageDataGenerator(rescale=1./255)
-
-train_generator = train_datagen.flow_from_directory(
-    train_dir,
-    target_size=(48,48),
-    batch_size=batch_size,
-    color_mode="grayscale",
-    class_mode='categorical')
-
-validation_generator = val_datagen.flow_from_directory(
-    val_dir,
-    target_size=(48,48),
-    batch_size=batch_size,
-    color_mode="grayscale",
-    class_mode='categorical')
-
 # Create the model
 model = Sequential()
 
-model.add(Conv2D(32, kernel_size=(3, 3), activation='relu', input_shape=(48,48,1)))
+model.add(Conv2D(32, kernel_size=(3, 3), activation='relu', input_shape=(48, 48, 1)))
 model.add(Conv2D(64, kernel_size=(3, 3), activation='relu'))
 model.add(MaxPooling2D(pool_size=(2, 2)))
 model.add(Dropout(0.25))
@@ -91,114 +34,93 @@ model.add(Dense(1024, activation='relu'))
 model.add(Dropout(0.5))
 model.add(Dense(7, activation='softmax'))
 
-# Train Command
-if mode == "train":
 
-    model.compile(loss='categorical_crossentropy',optimizer=Adam(lr=0.0001, decay=1e-6),metrics=['accuracy'])
+spotify = setup()  # setup Spotify integration
+model.load_weights('model.h5')
+cv2.ocl.setUseOpenCL(False)
 
-    model_info = model.fit(
-        train_generator,
-        steps_per_epoch=num_train // batch_size,
-        epochs=num_epoch,
-        validation_data=validation_generator,
-        validation_steps=num_val // batch_size)
+# Dictionaries
+emotion_dict = {0: "Angry", 1: "Disgusted", 2: "Neutral", 3: "Happy",
+                4: "Neutral", 5: "Sad", 6: "Happy"}
 
-    plot_model_history(model_info)
-    model.save_weights('model.h5')
+action_dict = {0: "Calming down user", 1: "Skip to next song", 2: "No change", 3: "Upbeat Environment",
+               4: "No change", 5: "Calming down user", 6: "Upbeat Environment"}
 
-# Run soundtrack
-elif mode == "display":
-    spotify = setup()  # setup Spotify integration
-    model.load_weights('model.h5')
-    cv2.ocl.setUseOpenCL(False)
+spotipy_dict = {0: "Rock", 1: "skip", 2: "", 3: "Upbeat",
+                4: "", 5: "Piano", 6: "Upbeat"}
 
-    # Dictionaries
-    emotion_dict = {0: "Angry", 1: "Disgusted", 2: "Neutral", 3: "Happy",
-                    4: "Neutral", 5: "Sad", 6: "Happy"}
+# Webcam Feed (LIVE)
+cap = cv2.VideoCapture(0)
+rolling_samples = []
+freqs = np.zeros(6, dtype=int)
+longterm_rolling_average = []
+longterm_freqs = np.zeros(6, dtype=int)
+prevmaxmood = None
+maxmood = 4
+sample = 0
+while True:
 
-    action_dict = {0: "Calming down user", 1: "Skip to next song", 2: "No change", 3: "Upbeat Environment",
-                    4: "No change", 5: "Calming down user", 6: "Upbeat Environment"}
+    # Find haar cascade to draw bounding box around face and eyes
+    ret, frame = cap.read()
+    frame = cv2.flip(frame, 1)
+    facecasc = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    faces = facecasc.detectMultiScale(gray, scaleFactor=1.3, minNeighbors=5)
 
-    spotipy_dict = {0: "Rock", 1: "skip", 2: "", 3: "Upbeat",
-                   4: "", 5: "Piano", 6: "Upbeat"}
+    for (x, y, w, h) in faces:
+        cv2.rectangle(frame, (x, y - 50), (x + w, y + h + 10), (255, 0, 0), 2)
+        roi_gray = gray[y:y + h, x:x + w]
+        cropped_img = np.expand_dims(np.expand_dims(cv2.resize(roi_gray, (48, 48)), -1), 0)
+        prediction = model.predict(cropped_img)
+        maxindex = int(np.argmax(prediction))
 
-    # Webcam Feed (LIVE)
-    cap = cv2.VideoCapture(0)
-    rolling_samples = []
-    freqs = np.zeros(6, dtype=int)
-    longterm_rolling_average = []
-    longterm_freqs = np.zeros(6, dtype=int)
-    prevmaxmood = None
-    maxmood = 4
-    sample = 0
-    while True:
-        
-        # Find haar cascade to draw bounding box around face and eyes
-        ret, frame = cap.read()
-        frame = cv2.flip(frame, 1)
-        facecasc = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
-        eye_cascade = cv2.CascadeClassifier('haarcascade_eye.xml')
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        faces = facecasc.detectMultiScale(gray,scaleFactor=1.3, minNeighbors=5)
+        # take rolling average
+        if len(rolling_samples) >= RUNNING_AVERAGE_SAMPLES:
+            oldest = rolling_samples.pop(0)
+            freqs[oldest] -= 1
 
+        # map surprised to happy
+        if maxindex == 6:
+            maxindex = 3
 
-        for (x, y, w, h) in faces:
-            cv2.rectangle(frame, (x, y-50), (x+w, y+h+10), (255, 0, 0), 2)
-            roi_gray = gray[y:y + h, x:x + w]
-            cropped_img = np.expand_dims(np.expand_dims(cv2.resize(roi_gray, (48, 48)), -1), 0)
-            prediction = model.predict(cropped_img)
-            maxindex = int(np.argmax(prediction))
+        rolling_samples.append(maxindex)
+        freqs[maxindex] += 1
+        maxavg = np.max(freqs)
+        maxavgindex = np.where(freqs == maxavg)[0][0]
 
-            # take rolling average
-            if len(rolling_samples) >= RUNNING_AVERAGE_SAMPLES:
-                oldest = rolling_samples.pop(0)
-                freqs[oldest] -= 1
+        # Every 5 samples, add the avg max to a rolling average
+        if sample % 10 == 0:
+            if len(longterm_rolling_average) >= LONGTERM_ROLLING_AVERAGE_SAMPLES:
+                oldest = longterm_rolling_average.pop(0)
+                longterm_freqs[oldest] -= 1
+            longterm_rolling_average.append(maxavgindex)
+            longterm_freqs[maxavgindex] += 1
+            maxmood = np.where(longterm_freqs == np.max(longterm_freqs))[0][0]
 
-            # map surprised to happy
-            if maxindex == 6:
-                maxindex = 3
+            if prevmaxmood is None or prevmaxmood != maxmood:
+                if maxmood == 1:
+                    maxmood = prevmaxmood
+                elif maxmood in [2, 4]:
+                    continue
+                prevmaxmood = maxmood
+                next(spotify, spotipy_dict[maxmood])
 
-            rolling_samples.append(maxindex)
-            freqs[maxindex] += 1
-            maxavg = np.max(freqs)
-            maxavgindex = np.where(freqs == maxavg)[0][0]
+        sample += 1
 
-            # Every 5 samples, add the avg max to a rolling average
-            if sample % 10 == 0:
-                if len(longterm_rolling_average) >= LONGTERM_ROLLING_AVERAGE_SAMPLES:
-                    oldest = longterm_rolling_average.pop(0)
-                    longterm_freqs[oldest] -= 1
-                longterm_rolling_average.append(maxavgindex)
-                longterm_freqs[maxavgindex] += 1
-                maxmood = np.where(longterm_freqs == np.max(longterm_freqs))[0][0]
-
-                if prevmaxmood is None or prevmaxmood != maxmood:
-                    if maxmood == 1:
-                        maxmood = prevmaxmood
-                    elif maxmood in [2,4]:
-                        continue
-                    prevmaxmood = maxmood
-                    next(spotify, spotipy_dict[maxmood])
-
-            sample += 1
-
-            cv2.putText(frame, emotion_dict[maxavgindex], (x+20, y-90), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA)
-            cv2.putText(frame, action_dict[maxavgindex], (x+20, y-60), cv2.FONT_ITALIC, 1, (0, 255, 0), 2, cv2.LINE_AA)
-            cv2.putText(frame, emotion_dict[maxmood], (x, y), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
-
-            roi_color = frame[y:y + h, x:x + w]
-            eyes = eye_cascade.detectMultiScale(roi_gray, 1.8, 20)
-            for (sx, sy, sw, sh) in eyes:
-                cv2.rectangle(roi_color, (sx, sy), ((sx + sw), (sy + sh)), (0, 0, 255), 2)
+        cv2.putText(frame, emotion_dict[maxavgindex], (x + 20, y - 90), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2,
+                    cv2.LINE_AA)
+        cv2.putText(frame, action_dict[maxavgindex], (x + 20, y - 60), cv2.FONT_ITALIC, 1, (0, 255, 0), 2,
+                    cv2.LINE_AA)
+        cv2.putText(frame, emotion_dict[maxmood], (x, y), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
 
     # Show frame to user
-        cv2.imshow("Frame: Pres 'q' to exit the program", frame)
-        key = cv2.waitKey(1) & 0xFF
+    cv2.imshow("Frame: Pres 'q' to exit the program", frame)
+    key = cv2.waitKey(1) & 0xFF
 
-        # Quit program by pressing 'q'
-        if key == ord("q"):
-            spotify.pause_playback()
-            break
+    # Quit program by pressing 'q'
+    if key == ord("q"):
+        spotify.pause_playback()
+        break
 
-    cap.release()
-    cv2.destroyAllWindows()
+cap.release()
+cv2.destroyAllWindows()
