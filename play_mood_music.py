@@ -62,7 +62,7 @@ def fade_out(spotify):
 def change_songs(spotify, track_uri):
     if not has_active_device(spotify):
         print("err: no active device")
-        quit()
+        return None
     spotify.add_to_queue(track_uri)
     fade_out(spotify)
     spotify.next_track()
@@ -85,6 +85,6 @@ def setup(scope=None):
 
     if not has_active_device(spotify):
         print("err: no active devices")
-        quit()
+        return None
     spotify.volume(100)
     return spotify

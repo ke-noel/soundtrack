@@ -50,18 +50,9 @@ spotipy_dict = {0: "Rock", 1: "skip", 2: "", 3: "Upbeat",
                 4: "", 5: "Piano", 6: "Upbeat"}
 
 # Webcam Feed (LIVE)
-cap = cv2.VideoCapture(0)
-rolling_samples = []
-freqs = np.zeros(6, dtype=int)
-longterm_rolling_average = []
-longterm_freqs = np.zeros(6, dtype=int)
-prevmaxmood = None
-maxmood = 4
-sample = 0
-while True:
 
-    # Find haar cascade to draw bounding box around face and eyes
-    ret, frame = cap.read()
+def music_from_emotion(frame, auth, rolling_samples, freqs, rolling_average, average_freqs, prevmood, currmood, sample):
+    # Find haar cascade to draw bounding box around face
     frame = cv2.flip(frame, 1)
     facecasc = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -85,25 +76,24 @@ while True:
 
         rolling_samples.append(maxindex)
         freqs[maxindex] += 1
-        maxavg = np.max(freqs)
-        maxavgindex = np.where(freqs == maxavg)[0][0]
+        maxavgindex = np.where(freqs == np.max(freqs))[0][0]
 
-        # Every 5 samples, add the avg max to a rolling average
+        # Every 10 samples, add the avg max to a rolling average
         if sample % 10 == 0:
-            if len(longterm_rolling_average) >= LONGTERM_ROLLING_AVERAGE_SAMPLES:
-                oldest = longterm_rolling_average.pop(0)
-                longterm_freqs[oldest] -= 1
-            longterm_rolling_average.append(maxavgindex)
-            longterm_freqs[maxavgindex] += 1
-            maxmood = np.where(longterm_freqs == np.max(longterm_freqs))[0][0]
+            if len(rolling_average) >= LONGTERM_ROLLING_AVERAGE_SAMPLES:
+                oldest = rolling_average.pop(0)
+                average_freqs[oldest] -= 1
+            rolling_average.append(maxavgindex)
+            average_freqs[maxavgindex] += 1
+            currmood = np.where(average_freqs == np.max(average_freqs))[0][0]
 
-            if prevmaxmood is None or prevmaxmood != maxmood:
-                if maxmood == 1:
-                    maxmood = prevmaxmood
-                elif maxmood in [2, 4]:
+            if prevmood is None or prevmood != currmood:
+                if currmood == 1:
+                    currmood = prevmood
+                elif currmood in [2, 4]:
                     continue
-                prevmaxmood = maxmood
-                next_track(spotify, spotipy_dict[maxmood])
+                prevmood = currmood
+                next_track(auth, spotipy_dict[currmood])
 
         sample += 1
 
@@ -111,16 +101,6 @@ while True:
                     cv2.LINE_AA)
         cv2.putText(frame, action_dict[maxavgindex], (x + 20, y - 60), cv2.FONT_ITALIC, 1, (0, 255, 0), 2,
                     cv2.LINE_AA)
-        cv2.putText(frame, emotion_dict[maxmood], (x, y), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
+        cv2.putText(frame, emotion_dict[currmood], (x, y), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
 
-    # Show frame to user
-    cv2.imshow("Frame: Pres 'q' to exit the program", frame)
-    key = cv2.waitKey(1) & 0xFF
-
-    # Quit program by pressing 'q'
-    if key == ord("q"):
-        spotify.pause_playback()
-        break
-
-cap.release()
-cv2.destroyAllWindows()
+    return frame, rolling_samples, freqs, rolling_average, average_freqs, prevmood, currmood
