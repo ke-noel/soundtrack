@@ -1,12 +1,13 @@
 import spotipy
 import random
 from spotipy.oauth2 import SpotifyOAuth
-import sys
+
 
 # Get authentication token for Spotify and user permissions
 # Need to set SPOTIPY_CLIENT_ID, SPOTIPY_CLIENT_SECRET and SPOTIPY_REDIRECT_URI (or include below)
 def authenticate(scope='user-modify-playback-state,user-read-playback-state'):
     return spotipy.Spotify(auth_manager=SpotifyOAuth(scope=scope, redirect_uri="https://localhost:8080"))
+
 
 # Query Spotify to get a new track matching the given mood
 # Return the track id
@@ -34,6 +35,7 @@ def get_new_track_uri(spotify, mood, playlist_offset=None, track_offset=None, in
 
     return uri
 
+
 # Verify that there is an active device
 def has_active_device(spotify):
     devices = spotify.devices()
@@ -41,20 +43,23 @@ def has_active_device(spotify):
         if d['is_active']:
             return True
     return False
-    
+
+
 # Fade the volume up
-def fade_in(spotify, start=50, stop=100):
+def fade_in(spotify):
     for i in range(25):
         spotify.volume(50+(i*2))
+
 
 # Fade the volume down
 def fade_out(spotify):
     for i in range(25):
         spotify.volume(100-(i*2))
 
+
 # Put a given track next in queue and switch from the current song to it
 # optional fade into new song
-def change_songs(spotify, track_uri, fade=True):
+def change_songs(spotify, track_uri):
     if not has_active_device(spotify):
         print("err: no active device")
         quit()
@@ -63,10 +68,12 @@ def change_songs(spotify, track_uri, fade=True):
     spotify.next_track()
     fade_in(spotify)
 
+
 # Get a song matching the mood and start playing it
-def next(spotify, mood, instrumental=False):
+def next_track(spotify, mood, instrumental=False):
     track_uri = get_new_track_uri(spotify, mood, instrumental=instrumental)
     change_songs(spotify, track_uri)
+
 
 # Authenticates and sets volume to 100
 # return authentication object
@@ -81,11 +88,3 @@ def setup(scope=None):
         quit()
     spotify.volume(100)
     return spotify
-
-if __name__ == '__main__':
-    if len(sys.argv) <= 1:
-        print("err: no mood given")
-        quit()
-    mood = sys.argv[1]
-    spotify = setup()
-    next(spotify, mood)

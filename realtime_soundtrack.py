@@ -4,7 +4,7 @@ import matplotlib as mpl
 from keras.models import Sequential
 from keras.layers.core import Dense, Dropout, Flatten
 from keras.layers.convolutional import Conv2D
-from play_mood_music import setup, next
+from play_mood_music import setup, next_track
 from keras.layers.pooling import MaxPooling2D
 import os
 
@@ -103,7 +103,7 @@ while True:
                 elif maxmood in [2, 4]:
                     continue
                 prevmaxmood = maxmood
-                next(spotify, spotipy_dict[maxmood])
+                next_track(spotify, spotipy_dict[maxmood])
 
         sample += 1
 
